@@ -1,0 +1,82 @@
+<mujoco model="umi_scissors">
+    <compiler angle="radian"/>
+    
+    <option impratio="10" timestep="0.002"/>
+    
+    <asset>
+        <mesh name="scissors_base" file="meshes/umi_base.STL" scale="1 1 1"/>
+        <mesh name="scissors_left" file="meshes/umi_left_finger.STL" scale="1 1 1"/>
+        <mesh name="scissors_right" file="meshes/umi_right_finger.STL" scale="1 1 1"/>
+    </asset>
+    
+    <worldbody>
+        <!-- 夹爪基座 -->
+        <body name="umi_scissors_base" pos="-0.057 -0.05 0 ">
+            <inertial mass="2.0" pos="0 0 5" diaginertia="0.01 0.01 0.01"/>
+            <geom name="base_visual" type="mesh" mesh="scissors_base" rgba="0.6 0.6 0.6 1" 
+                  contype="0" conaffinity="0" group="1"/>
+            
+            <!-- 碰撞几何体：用简单形状近似剪刀外形 -->
+            <body name="collision_holder" pos="0 -0.017 0.282" euler="0 1.57 0">
+                <geom name="scissors_col_1" type="box" size="0.0668 0.0353 0.0378" pos="0.2155 0.0731 0.0567" 
+                      contype="1" conaffinity="1" rgba="1 0 0 0" group="1"/>
+                <geom name="scissors_col_2" type="box" size="0.0617 0.0277 0.0277" pos="0.2129 0.1386 0.0567" 
+                      contype="1" conaffinity="1" rgba="1 0 0 0" group="1"/>
+                <geom name="scissors_col_3" type="capsule" size="0.0227" fromto="0.2520 0.0378 0.0567 0.1764 0.0378 0.0567" 
+                      contype="1" conaffinity="1" rgba="1 0 0 0" group="1"/>
+                <geom name="scissors_col_4" type="capsule" size="0.0176" fromto="0.1512 0.0731 0.0567 0.0378 0.0731 0.0567" 
+                      contype="1" conaffinity="1" rgba="1 0 0 0" group="1"/>
+                <geom name="scissors_col_7" type="box" size="0.0151 0.0252 0.0378" pos="0.1537 0.2142 0.0365" euler="0 0 0.31"
+                      contype="1" conaffinity="1" rgba="1 0 0 0" group="1"/>
+                <geom name="scissors_col_8" type="box" size="0.0063 0.0088 0.0441" pos="0.1726 0.1638 0.0567" 
+                      contype="1" conaffinity="1" rgba="1 0 0 0" group="1"/>
+
+                <!-- 腕部相机 -->
+                <camera name="wrist_cam" pos="0.1512 0.189 0.0567" quat="0.701 -0.092 0.701 0.092" fovy="60"/>
+            </body>           
+            
+            <!-- 末端执行器标记点 -->
+            <site name="pinch" pos="0.058 0.052 0.28" size="0.001" rgba="1 0 0 0" type="sphere"/>
+
+            <!-- 铰链可视化标记点 -->
+            <site name="hinge_point" pos="0.057 0.052 0.246" size="0.001" rgba="0 1 0 1" type="sphere"/>
+
+            <!-- 左剪刀片 -->
+            <body name="left_finger" pos="0.0495 0.048 0" gravcomp="1">
+                <inertial mass="0.2" pos="0 0 0.1" diaginertia="0.001 0.001 0.001"/>
+                <joint name="left_driver_joint" type="hinge" axis="0 1 0" 
+                       pos="0.0075 0.004 0.246" range="-0.3 0.3" damping="100" armature="0.01"/>
+                <geom name="left_visual" type="mesh" mesh="scissors_left" rgba="1 1 1 1"
+                      contype="0" conaffinity="0" group="1"/>
+                <!-- 左刀片碰撞体 -->
+                <geom name="scissors_col_5" type="box" size="0.0101 0.0038 0.0126" pos="0.0311 0.0081 0.2592" euler="0 2.094 0"
+                      contype="1" conaffinity="1" rgba="0 1 0 0" group="1"/>
+            </body>
+
+            <!-- 右剪刀片 -->
+            <body name="right_finger" pos="0.013 0.042 0" gravcomp="1">
+                <inertial mass="0.2" pos="0 0 0.1" diaginertia="0.001 0.001 0.001"/>
+                <joint name="right_driver_joint" type="hinge" axis="0 1 0" 
+                       pos="0.044 0.01 0.246" range="-0.3 0.3" damping="100" armature="0.01"/>
+                <geom name="right_visual" type="mesh" mesh="scissors_right" rgba="1 1 1 1"
+                      contype="0" conaffinity="0" group="1"/>
+                <!-- 右刀片碰撞体 -->
+                <geom name="scissors_col_6" type="box" size="0.0101 0.0038 0.0126" pos="0.0198 0.0141 0.2592" euler="0 1.046 0"
+                      contype="1" conaffinity="1" rgba="0 1 0 0" group="1"/>
+            </body>
+        </body>
+    </worldbody>
+    
+    <actuator>
+        <position name="left_actuator" joint="left_driver_joint" 
+                  kp="100" ctrlrange="-0.3 0.3" forcerange="-100 100"/>
+        <position name="right_actuator" joint="right_driver_joint" 
+                  kp="100" ctrlrange="-0.3 0.3" forcerange="-100 100"/>
+    </actuator>
+
+    <contact>
+        <exclude body1="umi_scissors_base" body2="left_finger"/>
+        <exclude body1="umi_scissors_base" body2="right_finger"/>
+        <exclude body1="left_finger" body2="right_finger"/>
+    </contact>
+</mujoco>

@@ -1,0 +1,31 @@
+<mujoco>
+    <asset>
+        <mesh name="kwr75b_mesh" file="KWR75B.stl" scale="1 1 1"/>
+    </asset>
+
+    <worldbody>
+        <body name="ft_sensor_link">
+            <inertial pos="0 0 0.019" mass="0.2" diaginertia="0.0001 0.0001 0.0001"/>
+            
+            <!-- 
+                KWR75B STL Origin is at the corner (0,0,0).
+                Dimensions: 75mm x 75mm x 38mm.
+                We shift it by half width/length (-0.0375) to center it on the flange.
+                Color: Silver (0.8 0.8 0.8 1)
+            -->
+            <geom type="mesh" mesh="kwr75b_mesh" rgba="0.8 0.8 0.8 1" pos="-0.0375 -0.0375 0" group="1"/>
+            
+            <!-- Sensor site -->
+            <site name="ft_frame" pos="0 0 0.019" size="0.001" rgba="1 0 0 1" type="sphere"/>
+
+            <!-- Mount point for gripper (height 0.038m) -->
+            <body name="ft_sensor_mount" pos="0 0 0.038">
+            </body>
+        </body>
+    </worldbody>
+
+    <sensor>
+        <force name="force_ee" site="ft_frame"/>
+        <torque name="torque_ee" site="ft_frame"/>
+    </sensor>
+</mujoco>

@@ -1,0 +1,22 @@
+-e .
+
+# Core dependencies
+numpy==1.26.3
+scipy==1.11.4
+mujoco==3.1.5
+gymnasium==1.1.1
+
+# Visualization
+opencv-python==4.11.0.86
+matplotlib==3.9.4
+
+# Logging
+rich==14.0.0
+
+# Trajectory planning
+ruckig~=0.9.2
+glfw==2.10.0
+
+pynput==1.8.1
+pyaubo-sdk==0.24.1
+dm-robotics-transformations==0.4.0

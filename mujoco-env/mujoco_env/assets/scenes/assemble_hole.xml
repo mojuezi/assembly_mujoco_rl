@@ -1,0 +1,144 @@
+<mujoco model="assemble_hole">
+    <compiler angle="radian"/>
+
+    <option timestep="0.005" gravity="0 0 -9.81" integrator="implicitfast" impratio="10" iterations="100">
+        <flag contact="enable" energy="enable" gravity="enable"/>
+    </option>
+
+    <visual>
+        <rgba haze="0.15 0.25 0.35 1"/>
+        <global azimuth="120" elevation="-20"/>
+    </visual>
+
+    <asset>
+        <mesh name="table" file="../objects/table/table.STL" scale="1.0 1.0 0.77"/>
+        <!-- 使用修复后的 hole_fixed 模型（collision parts），内联 mesh 声明 -->
+        <mesh name="hole_fixed_collision_0" file="../objects/hole/hole_fixed/hole_fixed_collision_0.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_1" file="../objects/hole/hole_fixed/hole_fixed_collision_1.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_2" file="../objects/hole/hole_fixed/hole_fixed_collision_2.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_3" file="../objects/hole/hole_fixed/hole_fixed_collision_3.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_4" file="../objects/hole/hole_fixed/hole_fixed_collision_4.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_5" file="../objects/hole/hole_fixed/hole_fixed_collision_5.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_6" file="../objects/hole/hole_fixed/hole_fixed_collision_6.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_7" file="../objects/hole/hole_fixed/hole_fixed_collision_7.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_8" file="../objects/hole/hole_fixed/hole_fixed_collision_8.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_9" file="../objects/hole/hole_fixed/hole_fixed_collision_9.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_10" file="../objects/hole/hole_fixed/hole_fixed_collision_10.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_11" file="../objects/hole/hole_fixed/hole_fixed_collision_11.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_12" file="../objects/hole/hole_fixed/hole_fixed_collision_12.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_13" file="../objects/hole/hole_fixed/hole_fixed_collision_13.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_14" file="../objects/hole/hole_fixed/hole_fixed_collision_14.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_15" file="../objects/hole/hole_fixed/hole_fixed_collision_15.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_16" file="../objects/hole/hole_fixed/hole_fixed_collision_16.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_17" file="../objects/hole/hole_fixed/hole_fixed_collision_17.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_18" file="../objects/hole/hole_fixed/hole_fixed_collision_18.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_19" file="../objects/hole/hole_fixed/hole_fixed_collision_19.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_20" file="../objects/hole/hole_fixed/hole_fixed_collision_20.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_21" file="../objects/hole/hole_fixed/hole_fixed_collision_21.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_22" file="../objects/hole/hole_fixed/hole_fixed_collision_22.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_23" file="../objects/hole/hole_fixed/hole_fixed_collision_23.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_24" file="../objects/hole/hole_fixed/hole_fixed_collision_24.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_25" file="../objects/hole/hole_fixed/hole_fixed_collision_25.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_26" file="../objects/hole/hole_fixed/hole_fixed_collision_26.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_27" file="../objects/hole/hole_fixed/hole_fixed_collision_27.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_28" file="../objects/hole/hole_fixed/hole_fixed_collision_28.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_29" file="../objects/hole/hole_fixed/hole_fixed_collision_29.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_30" file="../objects/hole/hole_fixed/hole_fixed_collision_30.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_31" file="../objects/hole/hole_fixed/hole_fixed_collision_31.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_32" file="../objects/hole/hole_fixed/hole_fixed_collision_32.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_33" file="../objects/hole/hole_fixed/hole_fixed_collision_33.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_34" file="../objects/hole/hole_fixed/hole_fixed_collision_34.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_35" file="../objects/hole/hole_fixed/hole_fixed_collision_35.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_36" file="../objects/hole/hole_fixed/hole_fixed_collision_36.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_37" file="../objects/hole/hole_fixed/hole_fixed_collision_37.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_38" file="../objects/hole/hole_fixed/hole_fixed_collision_38.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_39" file="../objects/hole/hole_fixed/hole_fixed_collision_39.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_40" file="../objects/hole/hole_fixed/hole_fixed_collision_40.obj" scale="1.2 1.2 1.0"/>
+        <mesh name="hole_fixed_collision_41" file="../objects/hole/hole_fixed/hole_fixed_collision_41.obj" scale="1.2 1.2 1.0"/>
+        <texture type="skybox" builtin="gradient" rgb1="0.68 0.68 0.68" rgb2="0.3 0.3 0.3" width="512" height="3072"/>
+        <texture name="groundplane" type="2d" builtin="checker" mark="edge" rgb1="0.68 0.68 0.68" rgb2="0.8 0.8 0.8"
+                 markrgb="0.68 0.68 0.68" width="300" height="300"/>
+        <material name="groundplane" reflectance="0.2" shininess="0.0" specular="0.5" texrepeat="5 5"
+                  texture="groundplane" texuniform="true"/>
+        <texture name="wood" type="2d" file="../textures/wood.png"/>
+        <material name="wood" texture="wood" texrepeat="1 1" texuniform="true" rgba="0.68 0.68 0.68 1"/>
+    </asset>
+
+    <worldbody>
+        <!-- Floor -->
+        <geom condim="3" material="groundplane" name="floor" pos="0 0 -0.42" size="3 3 .125" type="plane"/>
+        <light diffuse=".8 .8 .8" dir="0 -.15 -1" directional="false" pos="1 1 8.0" specular="0.3 0.3 0.3"
+               castshadow="false"/>
+        <light diffuse=".8 .8 .8" dir="0 -.15 -1" directional="false" pos="-3. -3. 8.0" specular="0.3 0.3 0.3"
+               castshadow="false"/>
+
+        <!-- 固定视角 -->
+        <camera mode="fixed" name="frontview" pos="1.6 0 1.45" quat="0.56 0.43 0.43 0.56"/>
+        <camera mode="fixed" name="birdview" pos="-0.2 0 3.0" quat="0.7071 0 0 0.7071"/>
+        <camera mode="fixed" name="agentview" pos="0.5 0 1.35" quat="0.653 0.271 0.271 0.653"/>
+        <camera mode="fixed" name="sideview" pos="-0.05651774593317116 1.2761224129427358 1.4879572214102434"
+                quat="0.009905065491771751 0.006877963156909582 0.5912228352893879 0.806418094001364"/>
+
+        <body name="table" pos="0.15 0.2 -0.42" euler="0 0 -0.26">
+            <geom type="mesh" contype="4" conaffinity="3" condim="3" group="0" rgba="0.68 0.68 0.68 1" mesh="table"
+                  friction="0.95 0.9 0.9"/>
+            <!-- <geom type="mesh" conaffinity="3" condim="3" contype="0" group="4" rgba="0.68 0.68 0.68 1" mesh="table"
+                  friction="0.95 0.9 0.9"/> -->
+        </body>
+
+        <!-- 使用 zhoukong.STL 的孔模型（已调整到位于 agentview 摄像机正下方） -->
+        <!-- <body name="hole" pos="0.6 0.2 0.526" euler="0 0 0"> -->
+        <!-- <body name="hole" pos="0.8 0.13 0.526" euler="0 0 0"> -->
+        <body name="hole" pos="-0.55 0.13 0.114" euler="0 0 -1.57">
+            <inertial pos="0 0 0" mass="1e-6" diaginertia="1e-6 1e-6 1e-6"/>
+            <!-- <joint name="hole" pos="0 0 0" axis="0 0 1"/> -->
+            <!-- 使用分解的 collision meshes 作为碰撞几何（视觉使用 collision meshes 或单独视觉 mesh） -->
+            <geom type="mesh" mesh="hole_fixed_collision_0" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_1" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_2" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_3" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_4" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_5" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_6" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_7" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_8" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_9" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_10" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_11" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_12" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_13" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_14" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_15" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_16" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_17" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_18" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_19" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_20" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_21" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_22" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_23" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_24" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_25" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_26" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_27" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_28" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_29" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_30" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_31" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_32" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_33" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_34" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_35" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_36" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_37" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_38" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_39" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_40" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <geom type="mesh" mesh="hole_fixed_collision_41" rgba="0.2 0.2 0.2 1" contype="4" conaffinity="3" condim="3"/>
+            <!-- 与动态孔等价的参考点（world pos = 0.6,0,0.505），相对 body 的 pos = 0 0 0.037 Z_table=0.46-->
+            <!-- <site name="hole_center" pos="-0.0399 0 0.0" rgba="1 0 0 1" size="0.003" quat="1 0 0 0"/> -->
+            <geom name="hole_blocker" type="box" pos="0.0229 0 0.001" euler="0 0 0" contype="4" conaffinity="3" size="0.042 0.019 0.00005"/>
+        </body>
+    </worldbody>
+</mujoco>   
+

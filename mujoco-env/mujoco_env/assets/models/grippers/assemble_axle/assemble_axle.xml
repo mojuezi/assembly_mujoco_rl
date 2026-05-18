@@ -1,0 +1,33 @@
+<mujoco model="assemble_axle">
+    <compiler angle="radian"/>
+    <asset>
+        <mesh name="assemble_axle1" file="meshes/assemble_axle1.STL"/>
+        <mesh name="assemble_axle2" file="meshes/assemble_axle2.STL"/>
+        <mesh name="assemble_axle3" file="meshes/assemble_axle3.STL"/>
+    </asset>
+    <worldbody>
+        <body name="end_effector" pos="0 0 0">
+            <inertial pos="0 0 0.0446057965611269" mass="0.829915639192743"/>
+            <geom type="mesh" condim="3" contype="2" conaffinity="5" group="1" density="0" rgba="0.627451 0.627451 0.627451 1"
+                  mesh="assemble_axle1"/>
+            <!-- <geom type="mesh" rgba="0.627451 0.627451 0.627451 1" mesh="assemble_axle1"/> -->
+            
+            <geom type="mesh" condim="3" contype="2" conaffinity="5" group="1" density="0" rgba="0.627451 0.627451 0.627451 1"
+                  mesh="assemble_axle2"/>
+            <!-- <geom type="mesh" rgba="0.627451 0.627451 0.627451 1" mesh="assemble_axle2"/> -->
+
+            <geom type="mesh" condim="3" contype="2" conaffinity="5" group="1" density="0" rgba="0.627451 0.627451 0.627451 1"
+                  mesh="assemble_axle3"/>
+            <!-- <geom type="mesh" rgba="0.627451 0.627451 0.627451 1" mesh="assemble_axle3"/> -->
+            
+            <camera name="ee_cam" pos="0 0.05 0.02" euler="0 3.14 0" fovy="60"/>
+            <body name="camera" pos="0 0.05 0.02">
+                <geom type="box" size="0.01 0.01 0.01" group="1" rgba="1 0 0 1"/>
+            </body>
+            
+            <body name="eef" pos="0 0 0">
+                <site name="grip_site" pos="0 0 0.111" size="0.01" rgba="1 0 0 1" type="sphere" group="1"/>
+            </body>
+        </body>
+    </worldbody>
+</mujoco>

@@ -1,0 +1,101 @@
+<mujoco model="grasping_scene">
+  <compiler angle="radian"/>
+
+  <option timestep="0.001" gravity="0 0 -9.81" integrator="implicitfast" impratio="10">
+      <flag contact="enable" energy="enable" gravity="enable"/>
+  </option>
+
+  <visual>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="120" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.68 0.68 0.68" rgb2="0.3 0.3 0.3" width="512" height="3072"/>
+    <texture name="groundplane" type="2d" builtin="checker" mark="edge"  rgb1="0.68 0.68 0.68" rgb2="0.8 0.8 0.8"
+      markrgb="0.68 0.68 0.68" width="300" height="300"/>
+    <material name="groundplane" reflectance="0.2" shininess="0.0" specular="0.0" texrepeat="5 5" texture="groundplane" texuniform="true"/>
+    
+    <texture name="wood" type="2d" file="../textures/wood.png"/>
+    <material name="wood" texture="wood" texrepeat="1 1" texuniform="true" rgba="0.68 0.68 0.68 1"/>
+    
+    <!-- 包含table的mesh -->
+    <mesh name="table" file="../objects/table/table.STL" scale="1.0 1.0 0.66"/>
+  </asset>
+
+  <worldbody>
+    <!-- Floor -->
+    <geom condim="3" material="groundplane" name="floor" pos="0 0 0" size="3 3 .125" type="plane"/>
+    <light diffuse=".8 .8 .8" dir="0 -.15 -1" directional="false" pos="1 1 8.0" specular="0.3 0.3 0.3" castshadow="false"/>
+    <light diffuse=".8 .8 .8" dir="0 -.15 -1" directional="false" pos="-3. -3. 8.0" specular="0.3 0.3 0.3" castshadow="false"/>
+    
+    <!-- 相机 -->
+    <camera mode="fixed" name="frontview" pos="1.6 0 1.45" quat="0.56 0.43 0.43 0.56"/>
+    <camera mode="fixed" name="birdview" pos="-0.2 0 3.0" quat="0.7071 0 0 0.7071"/>
+    <camera mode="fixed" name="agentview" pos="0.5 0 1.35" quat="0.653 0.271 0.271 0.653"/>
+    <camera mode="fixed" name="sideview" pos="-0.05651774593317116 1.2761224129427358 1.4879572214102434" quat="0.009905065491771751 0.006877963156909582 0.5912228352893879 0.806418094001364" />
+
+    <!-- 桌子（直接定义，不再include table.xml以避免嵌套问题） -->
+    <body name="table" pos="1.0 0.4 0.0" euler="0 0 0">
+        <geom pos="-0.6 -0.3 0.411" contype="0" conaffinity="0" group="1" euler="0 0 1.57" type="box" size="0.3 0.6 0.01" material="wood"/>
+        <geom pos="-0.6 -0.3 0.411" conaffinity="1" condim="3" contype="0" group="4" euler="0 0 1.57" type="box" size="0.3 0.6 0.01" />
+        <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.68 0.68 0.68 1" mesh="table" friction="0.95 0.9 0.9"/>
+        <geom type="mesh" conaffinity="1" condim="3" contype="0" group="4" rgba="0.68 0.68 0.68 1" mesh="table" friction="0.95 0.9 0.9"/>
+    </body>
+
+    <!-- 篮子 (用于放置抓取的方块) -->
+    <body name="basket" pos="0.3 0.3 0.411">
+        <!-- 篮子底 -->
+        <geom name="basket_bottom" type="box" size="0.1 0.1 0.005" pos="0 0 0.005" rgba="0.6 0.4 0.2 1" friction="1 0.5 0.5"/>
+        <!-- 篮子四壁 -->
+        <geom name="basket_wall1" type="box" size="0.1 0.005 0.04" pos="0 0.095 0.04" rgba="0.6 0.4 0.2 1"/>
+        <geom name="basket_wall2" type="box" size="0.1 0.005 0.04" pos="0 -0.095 0.04" rgba="0.6 0.4 0.2 1"/>
+        <geom name="basket_wall3" type="box" size="0.005 0.09 0.04" pos="0.095 0 0.04" rgba="0.6 0.4 0.2 1"/>
+        <geom name="basket_wall4" type="box" size="0.005 0.09 0.04" pos="-0.095 0 0.04" rgba="0.6 0.4 0.2 1"/>
+    </body>
+
+    <!-- 方块（用于抓取任务），3x3排列，3红3绿3蓝，200g -->
+    <!-- 红色方块 -->
+    <body name="cube_red_1" pos="0.4 -0.1 0.442">
+        <geom name="cube_geom_red_1" type="box" size="0.02 0.02 0.02" rgba="1 0 0 1" mass="0.2" friction="0.95 0.9 0.9"/>
+        <joint name="cube_joint_red_1" type="free"/>
+    </body>
+    <body name="cube_red_2" pos="0.4 0.0 0.442">
+        <geom name="cube_geom_red_2" type="box" size="0.02 0.02 0.02" rgba="1 0 0 1" mass="0.2" friction="0.95 0.9 0.9"/>
+        <joint name="cube_joint_red_2" type="free"/>
+    </body>
+    <body name="cube_red_3" pos="0.4 0.1 0.442">
+        <geom name="cube_geom_red_3" type="box" size="0.02 0.02 0.02" rgba="1 0 0 1" mass="0.2" friction="0.95 0.9 0.9"/>
+        <joint name="cube_joint_red_3" type="free"/>
+    </body>
+
+    <!-- 绿色方块 -->
+    <body name="cube_green_1" pos="0.5 -0.1 0.442">
+        <geom name="cube_geom_green_1" type="box" size="0.02 0.02 0.02" rgba="0 1 0 1" mass="0.2" friction="0.95 0.9 0.9"/>
+        <joint name="cube_joint_green_1" type="free"/>
+    </body>
+    <body name="cube" pos="0.5 0.0 0.442">
+        <geom name="cube_geom" type="box" size="0.02 0.02 0.02" rgba="0 1 0 1" mass="0.2" friction="0.95 0.9 0.9"/>
+        <joint name="cube_joint" type="free"/>
+    </body>
+    <body name="cube_green_3" pos="0.5 0.1 0.442">
+        <geom name="cube_geom_green_3" type="box" size="0.02 0.02 0.02" rgba="0 1 0 1" mass="0.2" friction="0.95 0.9 0.9"/>
+        <joint name="cube_joint_green_3" type="free"/>
+    </body>
+
+    <!-- 蓝色方块 -->
+    <body name="cube_blue_1" pos="0.6 -0.1 0.442">
+        <geom name="cube_geom_blue_1" type="box" size="0.02 0.02 0.02" rgba="0 0 1 1" mass="0.2" friction="0.95 0.9 0.9"/>
+        <joint name="cube_joint_blue_1" type="free"/>
+    </body>
+    <body name="cube_blue_2" pos="0.6 0.0 0.442">
+        <geom name="cube_geom_blue_2" type="box" size="0.02 0.02 0.02" rgba="0 0 1 1" mass="0.2" friction="0.95 0.9 0.9"/>
+        <joint name="cube_joint_blue_2" type="free"/>
+    </body>
+    <body name="cube_blue_3" pos="0.6 0.1 0.442">
+        <geom name="cube_geom_blue_3" type="box" size="0.02 0.02 0.02" rgba="0 0 1 1" mass="0.2" friction="0.95 0.9 0.9"/>
+        <joint name="cube_joint_blue_3" type="free"/>
+    </body>
+
+  </worldbody>
+</mujoco>

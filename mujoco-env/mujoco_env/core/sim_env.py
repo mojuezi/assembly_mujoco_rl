@@ -301,7 +301,7 @@ class SimulationRobotEnv(BaseRobotEnv):
         # self.target_mv_tcp[0] = self._desired_goal[0]
         # self.target_mv_tcp[1] = self._desired_goal[1]
         # action = np.array([-0.00, 0.00, -0.001])
-        print("action: ", action)
+        # print("action: ", action)
         self.target_mv_tcp += action[:3]
 
         if self.task is not None:
@@ -310,7 +310,7 @@ class SimulationRobotEnv(BaseRobotEnv):
                 self.task.workspace_low,
                 self.task.workspace_high,
             )
-        print("goal_tcp: ", self.target_mv_tcp)
+        # print("goal_tcp: ", self.target_mv_tcp)
         
         # 执行多步物理仿真
         for _ in range(self._n_substeps):
@@ -333,7 +333,7 @@ class SimulationRobotEnv(BaseRobotEnv):
         
         # 获取观测（只调用一次，避免重复渲染）
         observation, obs_norm = self._get_obs()
-        print("observation: ", observation["tcp_pos"])
+        # print("observation: ", observation["tcp_pos"])
         # print("final_goal: ", observation["desired_goal"])
         
         # 计算奖励（复用观测，不再重复调用 _get_obs）
@@ -366,7 +366,7 @@ class SimulationRobotEnv(BaseRobotEnv):
         # if abs(observation["wrench"][0]) >= 45 or abs(observation["wrench"][1]) >= 45 or abs(observation["wrench"][2]) >= 45: reward -= 1000
         
         
-        print(f"Step {self._elapsed_steps} | XY distance: {xy_distance:.5f} | Z distance: {z_distance:.5f} | Reward: {reward:.2f}")
+        # print(f"Step {self._elapsed_steps} | XY distance: {xy_distance:.5f} | Z distance: {z_distance:.5f} | Reward: {reward:.2f}")
         # self.cnt += 1
         # print("cnt: ", self.cnt)
         

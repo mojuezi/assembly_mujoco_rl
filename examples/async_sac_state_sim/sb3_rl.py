@@ -40,7 +40,7 @@ def print_green(x):
 
 #train model 
 def train(agent_name="ppo", total_timesteps=100_000, save_freq=10_000, env=None, 
-          save_path="./checkpoints/test_image_sim_v0"):
+          save_path="./checkpoints/test_image_sim_v2"):
     
     # Create a directory to store the log files if it doesn't exist
     log_dir = "./logs"
@@ -110,7 +110,7 @@ def test_rl_model(agent_name, env):
 
     # Load the trained model
     model = model_class(policy, env, verbose=1, device="cuda", buffer_size=1_000_00)
-    model = model.load(f"./checkpoints/test_state_sim/sac_final_model")
+    model = model.load(f"./checkpoints/test_image_sim_v1/sac_final_model")
 
     success_count = 0
     failure_count = 0
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         kwargs={'render_mode': "rgb_array", 
                 "mode":"sim", 
                 "include_image": True,
-                "image_size": (256, 256),
+                "image_size": (128, 128),
                 "include_depth": False,
                 "control_dt": 0.01, 
                 "physics_dt": 0.0005, 

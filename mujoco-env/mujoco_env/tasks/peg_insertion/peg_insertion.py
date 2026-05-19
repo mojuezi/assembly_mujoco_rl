@@ -72,6 +72,15 @@ class PegInsertionTask(BaseTask):
         self.obs_norm = True
         self.random = False
 
+        # Reward / success thresholds (staged XY-then-Z shaping)
+        self.xy_align_thresh = 0.015   # 15 mm: gate Z reward
+        self.xy_good_thresh = 0.008    # 8 mm: extra bonus
+        self.xy_success_tolerance = 0.008
+        self.z_insert_min = -0.005       # allow slight below hole center
+        self.z_insert_max = 0.010      # allow slightly above hole center
+        self._prev_xy = None
+        self._prev_z = None
+
         self.mode = mode 
         self.hole_position_real = hole_position_real 
         
@@ -114,6 +123,12 @@ class PegInsertionTask(BaseTask):
             self.center = np.asarray(self.hole_position[:3], dtype=np.float32)
             self.workspace_low = workspace_low_real
             self.workspace_high = workspace_high_real
+
+    def reset(self) -> Dict[str, Any]:
+        """Reset task and clear progress buffers used by shaped reward."""
+        self._prev_xy = None
+        self._prev_z = None
+        return super().reset()
 
     def _load_hole_info_from_scene(self):
         """
@@ -212,24 +227,36 @@ class PegInsertionTask(BaseTask):
         # achieved_goal：可为 [x,y,z]（轴尖位置）或 [x,y,z,depth]（若包含深度）
         # desired_goal：目标孔中心位置 [x,y,z]
 
-        # Extract positions
-        # pdb.set_trace()
         position_cur = obs["tcp_pos"][:3].copy()
         position_goal = desired_goal[:3].copy()
 
-        # XY alignment error and reward
         xy_distance = np.linalg.norm(position_cur[:2] - position_goal[:2])
-        
-        # 力反馈占位（后续可由环境或传感器填入真实值）
-        force_reward = 0.0
-        force = obs["wrench"]
+        z_above = position_cur[2] - position_goal[2]
+        z_distance = abs(z_above)
 
-        # 深度奖励：鼓励更深的插入
-        z_distance = abs(position_cur[-1] - position_goal[-1])
+        # 1) XY: dense exponential shaping (stronger gradient when close)
+        r_xy = 2.0 * np.exp(-40.0 * xy_distance) - 2.0
 
-        reward = 10 * (-2 * xy_distance - 0.5 * z_distance)
+        # 2) Z: gated — only reward descent when XY is aligned
+        if xy_distance < self.xy_align_thresh:
+            if z_above > 0:
+                r_z = 3.0 * np.exp(-30.0 * z_above) - 3.0
+            else:
+                r_z = 1.0
+            if xy_distance < self.xy_good_thresh:
+                r_z += 2.0
+        else:
+            r_z = -1.0 * max(z_above, 0.0)
+            r_z -= 3.0 * max(self.xy_align_thresh - xy_distance, 0.0)
 
+        # 3) Progress bonus (credit for reducing error step-to-step)
+        r_progress = 0.0
+        if self._prev_xy is not None:
+            r_progress = 5.0 * (self._prev_xy - xy_distance) - 2.0 * (self._prev_z - z_distance)
+        self._prev_xy = xy_distance
+        self._prev_z = z_distance
 
+        reward = float(r_xy + r_z + r_progress)
         return xy_distance, z_distance, reward
     
     def is_success_fn(
@@ -256,14 +283,12 @@ class PegInsertionTask(BaseTask):
         #     return True
 
 
-        # 成功定义：
-        # - XY 在 position_tolerance 内对齐
-        # - 插入深度为正（已插入）
-        pos_error = np.linalg.norm(obs["tcp_pos"][:3] - desired_goal[:3])
-        if pos_error <= self.position_tolerance:
-            return True
-        
-        return False
+        # Staged success: XY aligned first, then Z at hole height / slight insertion
+        xy_distance = np.linalg.norm(obs["tcp_pos"][:2] - desired_goal[:2])
+        z_above = obs["tcp_pos"][2] - desired_goal[2]
+        xy_ok = xy_distance < self.xy_success_tolerance
+        z_ok = self.z_insert_min <= z_above <= self.z_insert_max
+        return bool(xy_ok and z_ok)
 
         # # 插入深度检查
         # if len(achieved_goal) > 3:
@@ -483,6 +508,12 @@ class PegInsertionTask(BaseTask):
         # - desired_goal: 孔心位置 (x, y, z)
         return spaces.Dict({
             "tcp_pos": spaces.Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=(3,),
+                dtype=np.float32
+            ),
+            "desired_goal": spaces.Box(
                 low=-np.inf,
                 high=np.inf,
                 shape=(3,),

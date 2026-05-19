@@ -73,7 +73,7 @@ def train(agent_name="ppo", total_timesteps=100_000, save_freq=10_000, env=None,
 
     # Create the model
     model = model_class(policy, env, verbose=1, train_freq=1, gradient_steps=1, device="cuda", tensorboard_log=log_dir, 
-                        buffer_size=1_000_00, batch_size=64)  
+                        buffer_size=1_000_00, batch_size=128)  
 
     # Create checkpoint callback
     checkpoint_callback = CheckpointCallback(save_freq=save_freq, save_path=save_path,
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         kwargs={'render_mode': "rgb_array", 
                 "mode":"sim", 
                 "include_image": True,
-                "image_size": (128, 128),
+                "image_size": (256, 256),
                 "include_depth": False,
                 "control_dt": 0.01, 
                 "physics_dt": 0.0005, 
@@ -212,7 +212,7 @@ if __name__ == "__main__":
     agent_name = "sac"
 
     # Train the RL model
-    train(agent_name=agent_name, total_timesteps=1000000, save_freq=10000, env=env)
+    train(agent_name=agent_name, total_timesteps=1000000, save_freq=20000, env=env)
 
     # Test the trained RL model
     # test_rl_model(agent_name, env)

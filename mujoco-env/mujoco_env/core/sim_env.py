@@ -336,38 +336,31 @@ class SimulationRobotEnv(BaseRobotEnv):
         print("observation: ", observation["tcp_pos"])
         # print("final_goal: ", observation["desired_goal"])
         
-        # 计算奖励和终止状态（复用观测，不再重复调用 _get_obs）
+        # 计算奖励（复用观测，不再重复调用 _get_obs）
         xy_distance, z_distance, reward = self._compute_reward(observation)
-        # reward -= 200 * np.linalg.norm(action[:2])
-
-        done = self._check_terminated(observation)
-        if done: reward += 100
-
 
         truncated = False
-        # Check max episode steps
-        if self._elapsed_steps >= self.max_episode_steps: 
+        if self._elapsed_steps >= self.max_episode_steps:
             truncated = True
-        
-        # Check if collision
+
         collided = self.is_contact(in_group=True, group1=1, group2=3) or \
             self.is_contact(in_group=True, group1=0, group2=3)
-        
-        if not (xy_distance < 0.045 and z_distance < 0.1): 
+        if not (xy_distance < 0.045 and z_distance < 0.1):
             collided = collided or self.is_contact(in_group=True, group1=0, group2=1)
 
-        
-        # Check if out of space
         out_of_workspace = self.task.is_out_of_workspace(observation)
 
         if collided:
+            reward -= 50.0
             print("Collision detected - resetting")
             done = True
-        elif out_of_workspace: 
+        elif out_of_workspace:
             print("Out of space")
             done = True
         else:
             done = self._check_terminated(observation)
+            if done:
+                reward += 100.0
 
         # truncated = truncated or (self.is_contact(in_group=True, group1=0, group2=1) and (abs(observation["wrench"][0]) >= 45 or abs(observation["wrench"][1]) >= 45 or abs(observation["wrench"][2]) >= 45))
         # if abs(observation["wrench"][0]) >= 45 or abs(observation["wrench"][1]) >= 45 or abs(observation["wrench"][2]) >= 45: reward -= 1000
@@ -786,13 +779,12 @@ class SimulationRobotEnv(BaseRobotEnv):
             obs["wrench"] = np.concatenate([self.sensor_monitor.get_force_data(), self.sensor_monitor.get_torque_data()], -1)
             # pdb.set_trace()
         
-        if self.task.obs_norm: 
+        if self.task.obs_norm:
             obs_norm["tcp_pos"] = (obs["tcp_pos"] - self.task.center) / self.task.workspace_high
-            # obs_norm["tcp_quat"] = obs["tcp_quat"]
-            # if obs["desired_goal"] is None:
-            #     obs_norm["desired_goal"] = np.zeros(3)
-            # else: 
-            #     obs_norm["desired_goal"] = (obs["desired_goal"] - self.task.center) / self.task.workspace_high
+            if obs.get("desired_goal") is not None:
+                obs_norm["desired_goal"] = (
+                    obs["desired_goal"] - self.task.center
+                ) / self.task.workspace_high
             # wrench_norm = np.zeros(6)
             # wrench_norm[:3] = obs["wrench"][:3] / 50.0
             # wrench_norm[3:] = obs["wrench"][3:] / 10.0

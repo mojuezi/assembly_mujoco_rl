@@ -1,7 +1,12 @@
 # sb3_rl.py 依赖（需先安装 mujoco-env，见项目根目录 mujoco-env/requirements.txt）
 #
-# 1) 先安装 PyTorch 2.3+（CUDA，按本机 CUDA 版本选 cu121 / cu124 / cu126）:
-#    pip install "torch>=2.3.0" --index-url https://download.pytorch.org/whl/cu124
+# 1) 先安装 PyTorch（CUDA）:
+#    # RTX 50 系 (5080/5090, sm_120) 必须用 cu128，cu121 会报 no kernel image:
+#    pip uninstall -y torch torchvision torchaudio
+#    pip install "torch>=2.7.0" torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+#
+#    # 其他 GPU (sm_90 及以下) 可用 cu124:
+#    # pip install "torch>=2.3.0" torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 #
 # 2) 再安装本文件其余依赖:
 #    pip install -r requirements-sb3.txt

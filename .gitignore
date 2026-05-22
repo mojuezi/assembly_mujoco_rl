@@ -27,6 +27,8 @@ wandb/
 runs/
 logs/
 *.log
+debug_depth/
+debug_depth_eval/
 
 # Model / dataset artifacts
 *.pkl

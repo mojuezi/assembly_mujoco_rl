@@ -73,9 +73,9 @@ class PegInsertionTask(BaseTask):
         self.random = False
 
         # Reward / success thresholds (staged XY-then-Z shaping)
-        self.xy_align_thresh = 0.006   # 15 mm: gate Z reward
-        self.xy_good_thresh = 0.003    # 8 mm: extra bonus
-        self.xy_success_tolerance = 0.004
+        self.xy_align_thresh = 0.004   # 15 mm: gate Z reward
+        self.xy_good_thresh = 0.002    # 8 mm: extra bonus
+        self.xy_success_tolerance = 0.001
         self.z_insert_min = -0.002       # allow slight below hole center
         self.z_insert_max = 0.002      # allow slightly above hole center
         self._prev_xy = None

@@ -355,6 +355,7 @@ class SimulationRobotEnv(BaseRobotEnv):
             print("Collision detected - resetting")
             done = True
         elif out_of_workspace:
+            reward -= 100.0
             print("Out of space")
             done = True
         else:

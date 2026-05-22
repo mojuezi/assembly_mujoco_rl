@@ -211,7 +211,7 @@ def make_visual_history_env(args: argparse.Namespace) -> gym.Env:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--total-timesteps", type=int, default=100_000)
+    parser.add_argument("--total-timesteps", type=int, default=1000_000)
     parser.add_argument("--save-freq", type=int, default=10_000)
     parser.add_argument("--save-path", type=str, default="./checkpoints/visual_sac_with_history")
     parser.add_argument("--device", type=str, default="cuda")

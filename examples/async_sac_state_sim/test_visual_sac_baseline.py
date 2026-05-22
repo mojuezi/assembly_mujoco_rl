@@ -16,6 +16,7 @@ args = Namespace(
     max_depth=2.0,
     save_depth_dir="./debug_depth_eval",
     save_depth_count=20,
+    show_depth=True,
     log_every=1,
     render_human=True,
     inspect_raw_obs=False,

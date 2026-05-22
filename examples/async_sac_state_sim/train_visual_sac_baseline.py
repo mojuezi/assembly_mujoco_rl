@@ -75,6 +75,7 @@ class DepthProprioObservationWrapper(gym.Wrapper):
         max_depth: float = 2.0,
         save_depth_dir: str | Path = "./debug_depth",
         save_depth_count: int = 8,
+        show_depth: bool = False,
         log_every: int = 1,
     ):
         super().__init__(env)
@@ -83,6 +84,7 @@ class DepthProprioObservationWrapper(gym.Wrapper):
         self.max_depth = float(max_depth)
         self.save_depth_dir = Path(save_depth_dir)
         self.save_depth_count = int(save_depth_count)
+        self.show_depth = bool(show_depth)
         self.log_every = max(1, int(log_every))
 
         self.base_env = self.env.unwrapped
@@ -137,6 +139,8 @@ class DepthProprioObservationWrapper(gym.Wrapper):
         return obs, reward, terminated, truncated, info
 
     def close(self):
+        if self.show_depth and cv2 is not None:
+            cv2.destroyWindow("depth")
         if hasattr(self, "renderer"):
             self.renderer.close()
         return self.env.close()
@@ -158,6 +162,9 @@ class DepthProprioObservationWrapper(gym.Wrapper):
 
         if self._saved_depth < self.save_depth_count:
             self._save_depth_image(depth_chw, tag=tag)
+
+        if self.show_depth:
+            self._show_depth_image(depth_chw)
 
         return depth_chw
 
@@ -197,6 +204,18 @@ class DepthProprioObservationWrapper(gym.Wrapper):
                 f.write(vis.tobytes())
         print(f"[depth save] {filename}")
         self._saved_depth += 1
+
+    def _show_depth_image(self, depth_chw: np.ndarray) -> None:
+        if cv2 is None:
+            print("[depth show] cv2 is not installed; cannot open depth window")
+            self.show_depth = False
+            return
+
+        depth_hw = depth_chw[0]
+        vis = ((1.0 - depth_hw) * 255.0).clip(0, 255).astype(np.uint8)
+        vis = cv2.resize(vis, (256, 256), interpolation=cv2.INTER_NEAREST)
+        cv2.imshow("depth", vis)
+        cv2.waitKey(1)
 
     def _get_proprio(self) -> np.ndarray:
         qpos, qvel = self._get_joint_state()
@@ -340,6 +359,7 @@ def make_visual_env(args: argparse.Namespace) -> gym.Env:
         max_depth=args.max_depth,
         save_depth_dir=args.save_depth_dir,
         save_depth_count=args.save_depth_count,
+        show_depth=args.show_depth,
         log_every=args.log_every,
     )
     return Monitor(env)
@@ -360,6 +380,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-depth", type=float, default=2.0)
     parser.add_argument("--save-depth-dir", type=str, default="./debug_depth")
     parser.add_argument("--save-depth-count", type=int, default=8)
+    parser.add_argument("--show-depth", action="store_true")
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--render-human", action="store_true")
     parser.add_argument("--no-inspect-raw-obs", dest="inspect_raw_obs", action="store_false")

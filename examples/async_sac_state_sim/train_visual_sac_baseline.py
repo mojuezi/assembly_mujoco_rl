@@ -379,7 +379,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera-name", type=str, default="ee_cam")
     parser.add_argument("--max-depth", type=float, default=2.0)
     parser.add_argument("--save-depth-dir", type=str, default="./debug_depth")
-    parser.add_argument("--save-depth-count", type=int, default=8)
+    parser.add_argument("--save-depth-count", type=int, default=0)
     parser.add_argument("--show-depth", action="store_true")
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--render-human", action="store_true")

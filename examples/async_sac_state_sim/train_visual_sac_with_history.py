@@ -18,6 +18,7 @@ for path in (MUJOCO_ENV_ROOT, PROJECT_ROOT):
 import gymnasium as gym
 import numpy as np
 import torch as th
+import torch.nn.functional as F
 from gymnasium import spaces
 from stable_baselines3 import SAC
 from stable_baselines3.common.callbacks import CheckpointCallback
@@ -26,6 +27,7 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch import nn
 
 from mujoco_env.mujoco_env.envs.env_instance import make_aubo_i5_assemble_hole_env
+from networks.visual_pose_encoder import VisualPoseEncoder
 from train_visual_sac_baseline import (
     DepthProprioObservationWrapper,
     inspect_raw_observation_once,
@@ -58,6 +60,12 @@ class DepthProprioHistoryObservationWrapper(DepthProprioObservationWrapper):
                     low=-np.inf,
                     high=np.inf,
                     shape=(self.history_len, proprio_dim),
+                    dtype=np.float32,
+                ),
+                "socket_relative_pos_gt": spaces.Box(
+                    low=-np.inf,
+                    high=np.inf,
+                    shape=(3,),
                     dtype=np.float32,
                 ),
             }
@@ -97,7 +105,28 @@ class DepthProprioHistoryObservationWrapper(DepthProprioObservationWrapper):
             "depth": depth,
             "proprio": proprio.astype(np.float32),
             "history": self.history_buffer.copy(),
+            "socket_relative_pos_gt": self._get_socket_relative_pos_gt(),
         }
+
+    def _get_socket_relative_pos_gt(self) -> np.ndarray:
+        """Return socket position relative to TCP, expressed in TCP frame."""
+        socket_pos = getattr(self.base_env, "_desired_goal", None)
+        if socket_pos is None and getattr(self.base_env, "task", None) is not None:
+            socket_pos = getattr(self.base_env.task, "hole_position", None)
+        if socket_pos is None:
+            return np.zeros(3, dtype=np.float32)
+
+        tcp_pos, _ = self._get_tcp_pose()
+        rel_world = np.asarray(socket_pos[:3], dtype=np.float32) - tcp_pos
+
+        site_name = getattr(self.base_env.controller, "ee_site_name", "grip_site")
+        try:
+            tcp_rotm = self.base_env.get_site_rotm(site_name).astype(np.float32)
+            rel_tcp = tcp_rotm.T @ rel_world
+        except Exception:
+            rel_tcp = rel_world
+
+        return rel_tcp.astype(np.float32)
 
     def _log_shapes(
         self,
@@ -185,6 +214,85 @@ class DepthProprioHistoryExtractor(BaseFeaturesExtractor):
         return final_features
 
 
+class AuxSAC(SAC):
+    """Minimal SAC variant with an auxiliary depth-to-relative-pose loss."""
+
+    def __init__(
+        self,
+        *args,
+        pose_loss_coef: float = 1.0,
+        pose_lr: float = 3e-4,
+        **kwargs,
+    ):
+        self.pose_loss_coef = float(pose_loss_coef)
+        self.pose_lr = float(pose_lr)
+        self.visual_pose_encoder = None
+        self.visual_pose_optimizer = None
+        super().__init__(*args, **kwargs)
+
+    def _setup_model(self) -> None:
+        super()._setup_model()
+        if not isinstance(self.observation_space, spaces.Dict):
+            raise TypeError("AuxSAC requires a Dict observation space")
+
+        depth_shape = self.observation_space["depth"].shape
+        self.visual_pose_encoder = VisualPoseEncoder(depth_shape=depth_shape).to(self.device)
+        self.visual_pose_optimizer = th.optim.Adam(
+            self.visual_pose_encoder.parameters(),
+            lr=self.pose_lr,
+        )
+
+    def train(self, gradient_steps: int, batch_size: int = 64) -> None:
+        super().train(gradient_steps=gradient_steps, batch_size=batch_size)
+
+        if self.visual_pose_encoder is None or self.visual_pose_optimizer is None:
+            return
+
+        pose_losses = []
+        pose_errors = []
+        pose_axis_errors = []
+        self.visual_pose_encoder.train()
+
+        for _ in range(gradient_steps):
+            replay_data = self.replay_buffer.sample(  # type: ignore[union-attr]
+                batch_size,
+                env=self._vec_normalize_env,
+            )
+            observations = replay_data.observations
+            if "socket_relative_pos_gt" not in observations:
+                continue
+
+            depth = observations["depth"]
+            pose_gt = observations["socket_relative_pos_gt"]
+            pose_hat, _ = self.visual_pose_encoder(depth)
+            pose_loss = F.mse_loss(pose_hat, pose_gt)
+
+            self.visual_pose_optimizer.zero_grad()
+            (self.pose_loss_coef * pose_loss).backward()
+            self.visual_pose_optimizer.step()
+
+            with th.no_grad():
+                abs_error = th.abs(pose_hat - pose_gt)
+                pose_losses.append(float(pose_loss.item()))
+                pose_errors.append(float(th.linalg.norm(pose_hat - pose_gt, dim=1).mean().item()))
+                pose_axis_errors.append(abs_error.mean(dim=0).detach().cpu().numpy())
+
+        if len(pose_losses) == 0:
+            return
+
+        mean_axis_error = np.mean(np.stack(pose_axis_errors, axis=0), axis=0)
+        self.logger.record("train/pose_loss", float(np.mean(pose_losses)))
+        self.logger.record("train/pose_error_mean", float(np.mean(pose_errors)))
+        self.logger.record("train/pose_error_x", float(mean_axis_error[0]))
+        self.logger.record("train/pose_error_y", float(mean_axis_error[1]))
+        self.logger.record("train/pose_error_z", float(mean_axis_error[2]))
+
+    def _get_torch_save_params(self):
+        state_dicts, saved_pytorch_variables = super()._get_torch_save_params()
+        state_dicts += ["visual_pose_encoder", "visual_pose_optimizer"]
+        return state_dicts, saved_pytorch_variables
+
+
 def make_visual_history_env(args: argparse.Namespace) -> gym.Env:
     render_mode = "human" if getattr(args, "render_human", False) else None
     env = make_aubo_i5_assemble_hole_env(
@@ -221,11 +329,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--total-timesteps", type=int, default=1000_000)
     parser.add_argument("--save-freq", type=int, default=10_000)
-    parser.add_argument("--save-path", type=str, default="./checkpoints/visual_sac_with_history")
+    parser.add_argument("--save-path", type=str, default="./checkpoints/visual_sac_with_history_v2")
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--buffer-size", type=int, default=100_000)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--learning-starts", type=int, default=1_000)
+    parser.add_argument("--pose-loss-coef", type=float, default=1.0)
+    parser.add_argument("--pose-lr", type=float, default=3e-4)
 
     parser.add_argument("--history-len", type=int, default=5)
     parser.add_argument("--image-size", type=int, default=64)
@@ -262,7 +372,7 @@ def main() -> None:
         net_arch=dict(pi=[256, 256], qf=[256, 256]),
     )
 
-    model = SAC(
+    model = AuxSAC(
         "MultiInputPolicy",
         env,
         policy_kwargs=policy_kwargs,
@@ -273,6 +383,8 @@ def main() -> None:
         batch_size=args.batch_size,
         learning_starts=args.learning_starts,
         device=args.device,
+        pose_loss_coef=args.pose_loss_coef,
+        pose_lr=args.pose_lr,
     )
 
     checkpoint_callback = CheckpointCallback(

@@ -1,7 +1,5 @@
 from argparse import Namespace
-from stable_baselines3 import SAC
-
-from train_visual_sac_with_history import make_visual_history_env
+from train_visual_sac_with_history import AuxSAC, make_visual_history_env
 
 args = Namespace(
     control_dt=0.01,
@@ -25,8 +23,8 @@ args = Namespace(
 
 env = make_visual_history_env(args)
 
-model = SAC.load(
-    "./checkpoints/visual_sac_with_history/visual_sac_with_history_340000_steps",
+model = AuxSAC.load(
+    "./checkpoints/visual_sac_with_history_v2/visual_sac_with_history_500000_steps",
     env=env,
     device="cuda",
 )

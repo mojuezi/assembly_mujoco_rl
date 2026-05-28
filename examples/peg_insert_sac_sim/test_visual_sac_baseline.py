@@ -15,6 +15,7 @@ import numpy as np
 from stable_baselines3 import SAC
 
 from train_visual_sac_baseline import make_visual_env
+from wrappers import ALL_OBS_MODES, FORCE_OBS_MODES
 
 
 @dataclass
@@ -92,16 +93,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--obs-mode",
         type=str,
-        default="rgb_proprio",
-        choices=["proprio", "depth_proprio", "rgb_proprio", "rgbd_proprio"],
+        default="force_proprio",
+        choices=sorted(ALL_OBS_MODES),
         help="Must match the mode used during training",
     )
     parser.add_argument(
         "--model-path",
         type=str,
-        default="./checkpoints/visual_sac_baseline_rgb/visual_sac_baseline_20000_steps",
+        default="./checkpoints/visual_sac_baseline_rgb/visual_sac_baseline_800000_steps",
     )
     parser.add_argument("--image-size", type=int, default=64)
+    parser.add_argument(
+        "--use-wrench-history",
+        action="store_true",
+        help="Enable wrench-history observations; automatically enabled for force_* obs modes.",
+    )
+    parser.add_argument("--wrench-history-len", type=int, default=16)
+    parser.add_argument("--force-scale", type=float, default=50.0)
+    parser.add_argument("--torque-scale", type=float, default=5.0)
+    parser.add_argument("--contact-force-threshold", type=float, default=3.0)
+    parser.add_argument("--jam-force-threshold", type=float, default=15.0)
     parser.add_argument("--max-steps", type=int, default=500, help="Max steps per episode.")
     parser.add_argument(
         "--n-episodes",
@@ -125,6 +136,7 @@ def parse_args() -> argparse.Namespace:
 def build_args(ns: argparse.Namespace):
     from argparse import Namespace
 
+    use_wrench_history = bool(ns.use_wrench_history or ns.obs_mode in FORCE_OBS_MODES)
     return Namespace(
         control_dt=0.01,
         physics_dt=0.001,
@@ -134,6 +146,12 @@ def build_args(ns: argparse.Namespace):
         ik_radius=0.01,
         obs_mode=ns.obs_mode,
         image_size=ns.image_size,
+        use_wrench_history=use_wrench_history,
+        wrench_history_len=ns.wrench_history_len,
+        force_scale=ns.force_scale,
+        torque_scale=ns.torque_scale,
+        contact_force_threshold=ns.contact_force_threshold,
+        jam_force_threshold=ns.jam_force_threshold,
         camera_name="ee_cam",
         max_depth=2.0,
         save_depth_dir="./debug_depth_eval",
@@ -404,6 +422,11 @@ def print_summary(summary: EvalSummary, cli: argparse.Namespace) -> None:
     print("=" * width)
     print(f"  model={cli.model_path}")
     print(f"  obs_mode={cli.obs_mode}  n_episodes={cli.n_episodes}  seed={cli.seed}")
+    if cli.obs_mode in FORCE_OBS_MODES or cli.use_wrench_history:
+        print(
+            f"  wrench_history_len={cli.wrench_history_len}  "
+            f"force_scale={cli.force_scale}  torque_scale={cli.torque_scale}"
+        )
     print("=" * width)
 
 
@@ -420,6 +443,7 @@ def main() -> None:
     base_env = _unwrap_env(env)
     task = getattr(base_env, "task", None)
 
+    print(f"[eval] observation_space={env.observation_space}")
     model = SAC.load(cli.model_path, env=env, device=cli.device)
 
     summary = EvalSummary()

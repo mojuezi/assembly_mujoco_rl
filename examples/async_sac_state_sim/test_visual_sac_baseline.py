@@ -92,14 +92,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--obs-mode",
         type=str,
-        default="depth_proprio",
+        default="rgb_proprio",
         choices=["proprio", "depth_proprio", "rgb_proprio", "rgbd_proprio"],
         help="Must match the mode used during training",
     )
     parser.add_argument(
         "--model-path",
         type=str,
-        default="./checkpoints/visual_sac_baseline_depth/visual_sac_baseline_840000_steps",
+        default="./checkpoints/new/visual_sac_baseline_840000_steps",
     )
     parser.add_argument("--image-size", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=500, help="Max steps per episode.")

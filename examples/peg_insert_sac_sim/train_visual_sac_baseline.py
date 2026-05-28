@@ -10,7 +10,7 @@ import sys
 import time
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 if "MUJOCO_GL" not in os.environ and not os.environ.get("DISPLAY"):
     os.environ["MUJOCO_GL"] = "egl"
@@ -23,7 +23,6 @@ for path in (MUJOCO_ENV_ROOT, PROJECT_ROOT):
         sys.path.insert(0, path_str)
 
 import gymnasium as gym
-import mujoco
 import numpy as np
 import torch as th
 from gymnasium import spaces
@@ -35,11 +34,12 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from torch import nn
 
 from mujoco_env.mujoco_env.envs.env_instance import make_aubo_i5_assemble_hole_env
-
-try:
-    import cv2
-except ModuleNotFoundError:
-    cv2 = None
+from wrappers import (
+    ALL_OBS_MODES,
+    FORCE_OBS_MODES,
+    DepthProprioObservationWrapper,
+    ForceProprioObservationWrapper,
+)
 
 
 def _configure_quiet_imports() -> None:
@@ -187,310 +187,8 @@ def inspect_raw_observation_once(env: gym.Env) -> None:
     )
 
 
-class MultiModalObservationWrapper(gym.Wrapper):
-    """Expose selectable proprio/vision observations for SB3 MultiInputPolicy.
-
-    The wrapper deliberately does not put desired_goal/socket_pose_gt into the
-    policy observation. The original env info is kept only for diagnostics.
-    """
-
-    def __init__(
-        self,
-        env: gym.Env,
-        obs_mode: str = "depth_proprio",
-        image_size: Tuple[int, int] = (64, 64),
-        camera_name: str = "ee_cam",
-        max_depth: float = 2.0,
-        save_depth_dir: str | Path = "./debug_depth",
-        save_depth_count: int = 8,
-        show_depth: bool = False,
-        show_rgb: bool = False,
-        log_every: int = 1,
-        enable_step_log: bool = False,
-    ):
-        super().__init__(env)
-        valid_modes = {"proprio", "depth_proprio", "rgb_proprio", "rgbd_proprio"}
-        if obs_mode not in valid_modes:
-            raise ValueError(f"obs_mode must be one of {sorted(valid_modes)}, got {obs_mode}")
-        self.obs_mode = obs_mode
-        self.height, self.width = image_size
-        self.camera_name = camera_name
-        self.max_depth = float(max_depth)
-        self.save_depth_dir = Path(save_depth_dir)
-        self.save_depth_count = int(save_depth_count)
-        self.show_depth = bool(show_depth)
-        self.show_rgb = bool(show_rgb)
-        self.log_every = max(1, int(log_every))
-        self.enable_step_log = bool(enable_step_log)
-
-        self.base_env = self.env.unwrapped
-        self.rgb_renderer = None
-        self.depth_renderer = None
-        if self.uses_rgb:
-            self.rgb_renderer = mujoco.Renderer(self.base_env.model, height=self.height, width=self.width)
-        if self.uses_depth:
-            self.depth_renderer = mujoco.Renderer(self.base_env.model, height=self.height, width=self.width)
-            self.depth_renderer.enable_depth_rendering()
-        self.camera_id = mujoco.mj_name2id(
-            self.base_env.model, mujoco.mjtObj.mjOBJ_CAMERA, self.camera_name
-        )
-        if self.camera_id < 0:
-            raise ValueError(f"Camera '{self.camera_name}' not found in MuJoCo model")
-
-        self.prev_action = np.zeros(self.action_space.shape, dtype=np.float32)
-        self._step_count = 0
-        self._saved_depth = 0
-
-        proprio_dim = self._get_proprio().shape[0]
-        obs_spaces = {
-            "proprio": spaces.Box(
-                low=-np.inf,
-                high=np.inf,
-                shape=(proprio_dim,),
-                dtype=np.float32,
-            ),
-        }
-        if self.uses_depth:
-            obs_spaces["depth"] = spaces.Box(
-                    low=0.0,
-                    high=1.0,
-                    shape=(1, self.height, self.width),
-                    dtype=np.float32,
-            )
-        if self.uses_rgb:
-            obs_spaces["rgb"] = spaces.Box(
-                low=0.0,
-                high=1.0,
-                shape=(3, self.height, self.width),
-                dtype=np.float32,
-            )
-        self.observation_space = spaces.Dict(obs_spaces)
-
-    @property
-    def uses_depth(self) -> bool:
-        return self.obs_mode in {"depth_proprio", "rgbd_proprio"}
-
-    @property
-    def uses_rgb(self) -> bool:
-        return self.obs_mode in {"rgb_proprio", "rgbd_proprio"}
-
-    def reset(self, **kwargs):
-        raw_obs, info = self.env.reset(**kwargs)
-        self.prev_action = np.zeros(self.action_space.shape, dtype=np.float32)
-        self._step_count = 0
-        obs = self._build_obs(tag="reset")
-        if self.enable_step_log and self._step_count == 0:
-            self._log_shapes(obs, action=None, reward=None, done=False, tag="reset")
-        return obs, info
-
-    def step(self, action):
-        raw_obs, reward, terminated, truncated, info = self.env.step(action)
-        self.prev_action = np.asarray(action, dtype=np.float32).copy()
-        self._step_count += 1
-        done = bool(terminated or truncated)
-        obs = self._build_obs(tag="step")
-
-        if self.enable_step_log and (
-            self._step_count <= 3 or self._step_count % self.log_every == 0 or done
-        ):
-            self._log_shapes(obs, action=action, reward=reward, done=done, tag="step")
-
-        return obs, reward, terminated, truncated, info
-
-    def close(self):
-        if self.show_depth and cv2 is not None:
-            cv2.destroyWindow("depth")
-        if self.show_rgb and cv2 is not None:
-            cv2.destroyWindow("rgb")
-        if self.rgb_renderer is not None:
-            self.rgb_renderer.close()
-        if self.depth_renderer is not None:
-            self.depth_renderer.close()
-        return self.env.close()
-
-    def _build_obs(self, tag: str) -> Dict[str, np.ndarray]:
-        obs = {"proprio": self._get_proprio()}
-        if self.uses_depth:
-            obs["depth"] = self._render_depth(tag=tag)
-        if self.uses_rgb:
-            obs["rgb"] = self._render_rgb()
-        return obs
-
-    def _render_depth(self, tag: str) -> np.ndarray:
-        if self.depth_renderer is None:
-            raise RuntimeError("Depth renderer was not initialized for this obs_mode")
-        self.depth_renderer.update_scene(self.base_env.data, camera=self.camera_id)
-        depth_hw = self.depth_renderer.render().astype(np.float32)
-
-        self._check_depth(depth_hw, tag=tag)
-
-        depth_hw = np.nan_to_num(depth_hw, nan=self.max_depth, posinf=self.max_depth, neginf=0.0)
-        depth_hw = np.clip(depth_hw, 0.0, self.max_depth) / self.max_depth
-        depth_chw = depth_hw[None, :, :].astype(np.float32)
-
-        if self._saved_depth < self.save_depth_count:
-            self._save_depth_image(depth_chw, tag=tag)
-
-        if self.show_depth:
-            self._show_depth_image(depth_chw)
-
-        return depth_chw
-
-    def _render_rgb(self) -> np.ndarray:
-        if self.rgb_renderer is None:
-            raise RuntimeError("RGB renderer was not initialized for this obs_mode")
-        self.rgb_renderer.update_scene(self.base_env.data, camera=self.camera_id)
-        rgb_hwc = self.rgb_renderer.render().astype(np.float32) / 255.0
-        if self.show_rgb:
-            self._show_rgb_image(rgb_hwc)
-        rgb_chw = np.transpose(rgb_hwc, (2, 0, 1)).astype(np.float32)
-        return rgb_chw
-
-    def _check_depth(self, depth_hw: np.ndarray, tag: str) -> None:
-        has_nan = bool(np.isnan(depth_hw).any())
-        has_inf = bool(np.isinf(depth_hw).any())
-        finite = depth_hw[np.isfinite(depth_hw)]
-        all_zero = bool(depth_hw.size > 0 and np.allclose(depth_hw, 0.0))
-        all_constant = bool(finite.size > 0 and np.allclose(finite.min(), finite.max()))
-
-        if finite.size > 0:
-            min_depth = float(finite.min())
-            max_depth = float(finite.max())
-        else:
-            min_depth = float("nan")
-            max_depth = float("nan")
-
-        if self.enable_step_log and (has_nan or has_inf or all_zero or all_constant):
-            TrainLogger.warn(
-                f"depth:{tag} nan={has_nan} inf={has_inf} zero={all_zero} "
-                f"const={all_constant} min={min_depth:.4f} max={max_depth:.4f}"
-            )
-
-    def _save_depth_image(self, depth_chw: np.ndarray, tag: str) -> None:
-        self.save_depth_dir.mkdir(parents=True, exist_ok=True)
-        depth_hw = depth_chw[0]
-        # Nearer pixels are brighter in the debug PNG for easier socket inspection.
-        vis = ((1.0 - depth_hw) * 255.0).clip(0, 255).astype(np.uint8)
-        if cv2 is not None:
-            filename = self.save_depth_dir / f"{self._saved_depth:03d}_{tag}_depth.png"
-            cv2.imwrite(str(filename), vis)
-        else:
-            filename = self.save_depth_dir / f"{self._saved_depth:03d}_{tag}_depth.pgm"
-            with filename.open("wb") as f:
-                f.write(f"P5\n{self.width} {self.height}\n255\n".encode("ascii"))
-                f.write(vis.tobytes())
-        if self.enable_step_log:
-            TrainLogger.info(f"saved depth debug image: {filename}")
-        self._saved_depth += 1
-
-    def _show_depth_image(self, depth_chw: np.ndarray) -> None:
-        if cv2 is None:
-            print("[depth show] cv2 is not installed; cannot open depth window")
-            self.show_depth = False
-            return
-
-        depth_hw = depth_chw[0]
-        vis = ((1.0 - depth_hw) * 255.0).clip(0, 255).astype(np.uint8)
-        vis = cv2.resize(vis, (256, 256), interpolation=cv2.INTER_NEAREST)
-        cv2.imshow("depth", vis)
-        cv2.waitKey(1)
-
-    def _show_rgb_image(self, rgb_hwc: np.ndarray) -> None:
-        if cv2 is None:
-            print("[rgb show] cv2 is not installed; cannot open rgb window")
-            self.show_rgb = False
-            return
-
-        vis = (rgb_hwc * 255.0).clip(0, 255).astype(np.uint8)
-        vis = cv2.resize(vis, (256, 256), interpolation=cv2.INTER_NEAREST)
-        cv2.imshow("rgb", vis[:, :, ::-1])
-        cv2.waitKey(1)
-
-    def _get_proprio(self) -> np.ndarray:
-        qpos, qvel = self._get_joint_state()
-        tcp_pos, tcp_quat = self._get_tcp_pose()
-        tcp_lin_vel, tcp_ang_vel = self._get_tcp_velocity()
-
-        proprio = np.concatenate(
-            [
-                qpos,
-                qvel,
-                tcp_pos,
-                tcp_quat,
-                tcp_lin_vel,
-                tcp_ang_vel,
-                self.prev_action.astype(np.float32).ravel(),
-            ],
-            axis=0,
-        )
-        return proprio.astype(np.float32)
-
-    def _get_joint_state(self) -> Tuple[np.ndarray, np.ndarray]:
-        dof = int(self.base_env.robot_config.dof)
-        joint_names = getattr(self.base_env.robot_config, "joint_names", None)
-        qpos = np.zeros(dof, dtype=np.float32)
-        qvel = np.zeros(dof, dtype=np.float32)
-
-        if joint_names is not None and len(joint_names) >= dof:
-            for idx, name in enumerate(joint_names[:dof]):
-                joint_id = mujoco.mj_name2id(self.base_env.model, mujoco.mjtObj.mjOBJ_JOINT, name)
-                if joint_id >= 0:
-                    qpos_adr = self.base_env.model.jnt_qposadr[joint_id]
-                    qvel_adr = self.base_env.model.jnt_dofadr[joint_id]
-                    qpos[idx] = self.base_env.data.qpos[qpos_adr]
-                    qvel[idx] = self.base_env.data.qvel[qvel_adr]
-            return qpos, qvel
-
-        return (
-            self.base_env.data.qpos[:dof].astype(np.float32).copy(),
-            self.base_env.data.qvel[:dof].astype(np.float32).copy(),
-        )
-
-    def _get_tcp_pose(self) -> Tuple[np.ndarray, np.ndarray]:
-        site_name = getattr(self.base_env.controller, "ee_site_name", "grip_site")
-        site_id = mujoco.mj_name2id(self.base_env.model, mujoco.mjtObj.mjOBJ_SITE, site_name)
-        if site_id < 0:
-            return np.zeros(3, dtype=np.float32), np.array([1, 0, 0, 0], dtype=np.float32)
-
-        tcp_pos = self.base_env.data.site_xpos[site_id].copy()
-        tcp_quat = np.zeros(4, dtype=np.float64)
-        mujoco.mju_mat2Quat(tcp_quat, self.base_env.data.site_xmat[site_id])
-        return tcp_pos.astype(np.float32), tcp_quat.astype(np.float32)
-
-    def _get_tcp_velocity(self) -> Tuple[np.ndarray, np.ndarray]:
-        site_name = getattr(self.base_env.controller, "ee_site_name", "grip_site")
-        try:
-            lin_vel = self.base_env.get_site_xvelp(site_name).astype(np.float32)
-            ang_vel = self.base_env.get_site_xvelr(site_name).astype(np.float32)
-            return lin_vel, ang_vel
-        except Exception:
-            return np.zeros(3, dtype=np.float32), np.zeros(3, dtype=np.float32)
-
-    def _log_shapes(
-        self,
-        obs: Dict[str, np.ndarray],
-        action: np.ndarray | None,
-        reward: float | None,
-        done: bool,
-        tag: str,
-    ) -> None:
-        action_shape = None if action is None else tuple(np.asarray(action).shape)
-        reward_text = "None" if reward is None else f"{float(reward):.4f}"
-        parts = [f"{key}={tuple(value.shape)}" for key, value in obs.items()]
-        TrainLogger.kv(
-            f"env {tag}",
-            f"{self.obs_mode} | "
-            + ", ".join(parts)
-            + f" | action={action_shape} reward={reward_text} done={done}",
-            indent=4,
-        )
-
-
-DepthProprioObservationWrapper = MultiModalObservationWrapper
-
-
 class MultiModalExtractor(BaseFeaturesExtractor):
-    """CNN visual encoders + proprio MLP feature extractor for MultiInputPolicy."""
+    """CNN visual encoders + proprio/force MLP feature extractor for MultiInputPolicy."""
 
     def __init__(self, observation_space: spaces.Dict, features_dim: int = 256):
         super().__init__(observation_space, features_dim)
@@ -524,8 +222,30 @@ class MultiModalExtractor(BaseFeaturesExtractor):
             nn.Linear(128, 128),
             nn.ReLU(),
         )
+        fusion_dim = total_visual_features + 128
+
+        self.force_mlp = None
+        if "force" in observation_space.spaces:
+            force_dim = int(np.prod(observation_space["force"].shape))
+            self.force_mlp = nn.Sequential(
+                nn.Linear(force_dim, 128),
+                nn.ReLU(),
+                nn.Linear(128, 128),
+                nn.ReLU(),
+            )
+            fusion_dim += 128
+
+        self.phase_mlp = None
+        if "phase" in observation_space.spaces:
+            phase_dim = int(np.prod(observation_space["phase"].shape))
+            self.phase_mlp = nn.Sequential(
+                nn.Linear(phase_dim, 32),
+                nn.ReLU(),
+            )
+            fusion_dim += 32
+
         self.fusion = nn.Sequential(
-            nn.Linear(total_visual_features + 128, features_dim),
+            nn.Linear(fusion_dim, features_dim),
             nn.ReLU(),
         )
 
@@ -535,10 +255,12 @@ class MultiModalExtractor(BaseFeaturesExtractor):
             for key in self.visual_keys
         ]
         proprio_features = self.proprio_mlp(observations["proprio"])
-        if len(visual_features) > 0:
-            fused = th.cat([*visual_features, proprio_features], dim=1)
-        else:
-            fused = proprio_features
+        features = [*visual_features, proprio_features]
+        if self.force_mlp is not None:
+            features.append(self.force_mlp(th.flatten(observations["force"], start_dim=1)))
+        if self.phase_mlp is not None:
+            features.append(self.phase_mlp(th.flatten(observations["phase"], start_dim=1)))
+        fused = th.cat(features, dim=1) if len(features) > 1 else features[0]
         return self.fusion(fused)
 
 
@@ -563,8 +285,7 @@ def make_single_visual_env(args: argparse.Namespace, rank: int = 0) -> gym.Env:
     if args.inspect_raw_obs and rank == 0:
         inspect_raw_observation_once(env)
 
-    env = DepthProprioObservationWrapper(
-        env,
+    wrapper_kwargs = dict(
         obs_mode=args.obs_mode,
         image_size=(args.image_size, args.image_size),
         camera_name=args.camera_name,
@@ -576,6 +297,24 @@ def make_single_visual_env(args: argparse.Namespace, rank: int = 0) -> gym.Env:
         log_every=args.log_every,
         enable_step_log=getattr(args, "env_step_log", False) and rank == 0,
     )
+    if args.obs_mode in FORCE_OBS_MODES:
+        env = ForceProprioObservationWrapper(
+            env,
+            wrench_history_len=args.wrench_history_len,
+            force_scale=args.force_scale,
+            torque_scale=args.torque_scale,
+            contact_force_threshold=args.contact_force_threshold,
+            jam_force_threshold=args.jam_force_threshold,
+            **wrapper_kwargs,
+        )
+    else:
+        if args.use_wrench_history:
+            raise ValueError(
+                "--use-wrench-history requires one of the force obs modes: "
+                f"{sorted(FORCE_OBS_MODES)}"
+            )
+        env = DepthProprioObservationWrapper(env, **wrapper_kwargs)
+
     monitor_dir = Path(getattr(args, "monitor_dir", "./logs/visual_sac_baseline"))
     monitor_dir.mkdir(parents=True, exist_ok=True)
     env = Monitor(env, filename=str(monitor_dir / f"env_{rank}"))
@@ -650,12 +389,23 @@ def parse_args() -> argparse.Namespace:
         "--obs-mode",
         type=str,
         default="rgb_proprio",
-        choices=["proprio", "depth_proprio", "rgb_proprio", "rgbd_proprio"],
+        choices=sorted(ALL_OBS_MODES),
         help=(
             "选择输入模式：proprio=单本体状态；depth_proprio=本体+深度；"
-            "rgb_proprio=本体+RGB；rgbd_proprio=本体+RGBD。视觉输入均经过 CNN。"
+            "rgb_proprio=本体+RGB；force_proprio=本体+六维力历史；"
+            "也支持 depth/rgb/rgbd + force_proprio 组合。视觉输入均经过 CNN。"
         ),
     )
+    parser.add_argument(
+        "--use-wrench-history",
+        action="store_true",
+        help="Enable wrench-history observations; use with force_* obs modes.",
+    )
+    parser.add_argument("--wrench-history-len", type=int, default=16)
+    parser.add_argument("--force-scale", type=float, default=50.0)
+    parser.add_argument("--torque-scale", type=float, default=5.0)
+    parser.add_argument("--contact-force-threshold", type=float, default=3.0)
+    parser.add_argument("--jam-force-threshold", type=float, default=15.0)
     parser.add_argument("--image-size", type=int, default=64)
     parser.add_argument("--camera-name", type=str, default="ee_cam")
     parser.add_argument("--max-depth", type=float, default=2.0)
@@ -709,6 +459,8 @@ def _print_obs_space(space: spaces.Space, indent: int = 2) -> None:
 def main() -> None:
     _configure_quiet_imports()
     args = parse_args()
+    if args.obs_mode in FORCE_OBS_MODES:
+        args.use_wrench_history = True
     Path(args.save_path).mkdir(parents=True, exist_ok=True)
 
     TrainLogger.banner("Visual SAC Baseline")
@@ -720,6 +472,11 @@ def main() -> None:
     TrainLogger.kv("device", args.device)
     TrainLogger.kv("save_path", args.save_path)
     TrainLogger.kv("monitor_dir", args.monitor_dir)
+    if args.obs_mode in FORCE_OBS_MODES or args.use_wrench_history:
+        TrainLogger.kv("use_wrench_history", args.use_wrench_history)
+        TrainLogger.kv("wrench_history_len", args.wrench_history_len)
+        TrainLogger.kv("force_scale", args.force_scale)
+        TrainLogger.kv("torque_scale", args.torque_scale)
 
     gradient_steps = resolve_gradient_steps(args.n_envs, args.gradient_steps)
     TrainLogger.section("SAC / parallel")

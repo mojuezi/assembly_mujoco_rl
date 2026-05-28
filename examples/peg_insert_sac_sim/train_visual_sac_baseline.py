@@ -625,7 +625,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--total-timesteps", type=int, default=1000_000)
     parser.add_argument("--save-freq", type=int, default=20_000)
-    parser.add_argument("--save-path", type=str, default="./checkpoints/visual_sac_baseline_depth_v1")
+    parser.add_argument("--save-path", type=str, default="./checkpoints/visual_sac_baseline_rgb")
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--buffer-size", type=int, default=100_000)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -637,19 +637,19 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Gradient updates per vec step. Default: n_envs when n_envs>1 else 1.",
     )
-    parser.add_argument("--n-envs", type=int, default=1)
+    parser.add_argument("--n-envs", type=int, default=32)
     parser.add_argument(
         "--vec-env-start-method",
         type=str,
         default="forkserver",
         choices=["forkserver", "spawn", "fork"],
     )
-    parser.add_argument("--monitor-dir", type=str, default="./logs/visual_sac_baseline_depth_v1")
+    parser.add_argument("--monitor-dir", type=str, default="./logs/visual_sac_baseline_rgb")
 
     parser.add_argument(
         "--obs-mode",
         type=str,
-        default="depth_proprio",
+        default="rgb_proprio",
         choices=["proprio", "depth_proprio", "rgb_proprio", "rgbd_proprio"],
         help=(
             "选择输入模式：proprio=单本体状态；depth_proprio=本体+深度；"

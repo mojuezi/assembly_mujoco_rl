@@ -120,14 +120,18 @@ class SimulationRobotEnv(BaseRobotEnv):
         
         # 渲染器
         self._viewer = None
+        self._cam_renderer = None
+        self._cam_id = -1
         self._render_width = 640
         self._render_height = 480
-        
+        self._last_action: Optional[np.ndarray] = None
+
         # 初始化父类
         super().__init__(render_mode=render_mode)
-        
+
         # 设置观测和动作空间（必须在 task 和 controller 创建之后）
         self._setup_spaces()
+        self._last_action = np.zeros(self.action_space.shape, dtype=np.float32)
     
     def _setup_spaces(self):
         """
@@ -294,6 +298,7 @@ class SimulationRobotEnv(BaseRobotEnv):
     
     def step(self, action: np.ndarray, action_clip=False) -> Tuple[Dict, float, bool, bool, Dict]:
         """执行一步仿真"""
+        self._last_action = np.asarray(action, dtype=np.float32).copy()
         # 限制动作范围
         if action_clip:
             action = np.clip(action, self.action_space.low, self.action_space.high)
@@ -381,44 +386,60 @@ class SimulationRobotEnv(BaseRobotEnv):
         
         return observation, reward, done, truncated, info
     
+    def _init_offscreen_renderer(self) -> None:
+        if self._cam_renderer is not None:
+            return
+        h, w = self.obs_config.image_size
+        self._cam_renderer = mujoco.Renderer(self.model, height=h, width=w)
+        self._cam_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_CAMERA, "ee_cam"
+        )
+        if self._cam_id < 0:
+            self._cam_id = 0
+
+    def _render_camera_image(self) -> np.ndarray:
+        """RGB uint8 [H, W, 3]."""
+        self._init_offscreen_renderer()
+        if hasattr(self._cam_renderer, "disable_depth_rendering"):
+            self._cam_renderer.disable_depth_rendering()
+        self._cam_renderer.update_scene(self.data, camera=self._cam_id)
+        return np.asarray(self._cam_renderer.render(), dtype=np.uint8)
+
+    def _render_depth_image(self) -> np.ndarray:
+        """Depth float32 [H, W] (MuJoCo normalized device depth)."""
+        self._init_offscreen_renderer()
+        self._cam_renderer.enable_depth_rendering()
+        self._cam_renderer.update_scene(self.data, camera=self._cam_id)
+        depth = np.asarray(self._cam_renderer.render(), dtype=np.float32)
+        if hasattr(self._cam_renderer, "disable_depth_rendering"):
+            self._cam_renderer.disable_depth_rendering()
+        if depth.ndim == 3:
+            depth = depth[..., 0]
+        return depth
+
     def render(self):
         """渲染当前状态"""
         if self.render_mode is None:
             return None
-        
-        if self._viewer is None:
-            if self.render_mode == "human" or self.render_mode == "rgb_array": 
-                self._viewer = mj_viewer.launch_passive(
-                    self.model, 
-                    self.data, 
-                    show_left_ui=False, 
-                    show_right_ui=False, 
-                )
-                self.last_render_time = time.time()
 
-            if self.render_mode == "rgb_array": 
-                self._cam_viewer = mujoco.Renderer(
-                    self.model,
-                    height=self.obs_config.image_size[0], 
-                    width=self.obs_config.image_size[1], 
-                )
-                self.cam_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, "ee_cam")
+        if self.render_mode == "rgb_array":
+            return self._render_camera_image()
 
-        
-        if self.render_mode == "depth":
-            # 启用深度渲染
-            self._viewer.enable_depth_rendering()
-            return self._viewer.render()
-        
-        if self.render_mode == "human" or self.render_mode == "rgb_array":
-            # 显示在窗口（需要额外的viewer）
-            # return self._viewer.render()
+        if self._viewer is None and self.render_mode == "human":
+            self._viewer = mj_viewer.launch_passive(
+                self.model,
+                self.data,
+                show_left_ui=False,
+                show_right_ui=False,
+            )
+            self.last_render_time = time.time()
+
+        if self.render_mode == "human":
             now = time.time()
-            if now - self.last_render_time > self.render_dt: 
+            if now - self.last_render_time > self.render_dt:
                 self._viewer.sync()
-                # time.sleep(self.control_dt*10)
                 self.last_render_time = now
-        
+
         return None
     
     def close(self):
@@ -752,24 +773,11 @@ class SimulationRobotEnv(BaseRobotEnv):
                 obs["desired_goal"] = None
         
         # 3. 传感器观测
-        if self.render_mode == "rgb_array":
-            self._cam_viewer.update_scene(self.data, camera=self.cam_id)
-            img = self._cam_viewer.render()
-            obs["image"] = img
-            cv2.imshow('image', img[:, :, ::-1])
-            cv2.waitKey(1)
-            # print("img", img)
-            # pdb.set_trace()
-        
-        if self.obs_config.include_image:
-            image = self.render()
-            if image is not None:
-                obs["image"] = image
-        
+        if self.obs_config.include_image or self.render_mode == "rgb_array":
+            obs["image"] = self._render_camera_image()
+
         if self.obs_config.include_depth:
-            # TODO: 实现深度图渲染
-            h, w = self.obs_config.image_size
-            obs["depth"] = np.zeros((h, w), dtype=np.float32)
+            obs["depth"] = self._render_depth_image()
         
         if self.robot_config.use_ft_sensor is not None: 
             sensor_site_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "end_force_sensor_site")
@@ -782,18 +790,24 @@ class SimulationRobotEnv(BaseRobotEnv):
         
         if self.task.obs_norm:
             obs_norm["tcp_pos"] = (obs["tcp_pos"] - self.task.center) / self.task.workspace_high
-            if obs.get("desired_goal") is not None:
-                obs_norm["desired_goal"] = (
-                    obs["desired_goal"] - self.task.center
-                ) / self.task.workspace_high
+            # if obs.get("desired_goal") is not None:
+            #     obs_norm["desired_goal"] = (
+            #         obs["desired_goal"] - self.task.center
+            #     ) / self.task.workspace_high
+            # obs_norm["tcp_quat"] = obs["tcp_quat"]
+            # if obs["desired_goal"] is None:
+            #     obs_norm["desired_goal"] = np.zeros(3)
+            # else: 
+            #     obs_norm["desired_goal"] = (obs["desired_goal"] - self.task.center) / self.task.workspace_high
             # wrench_norm = np.zeros(6)
             # wrench_norm[:3] = obs["wrench"][:3] / 50.0
             # wrench_norm[3:] = obs["wrench"][3:] / 10.0
             # obs_norm["wrench"] = wrench_norm
-            if "image" in obs.keys(): 
+            if "image" in obs:
                 obs_norm["image"] = obs["image"]
-            
-        
+            if "depth" in obs:
+                obs_norm["depth"] = obs["depth"]
+
         return obs, obs_norm
     
     def _set_action(self, action: np.ndarray):

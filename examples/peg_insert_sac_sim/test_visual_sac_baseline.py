@@ -100,7 +100,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model-path",
         type=str,
-        default="./checkpoints/visual_sac_baseline_rgb/visual_sac_baseline_800000_steps",
+        default="./checkpoints/visual_sac_baseline_depth_force_proprio/visual_sac_baseline_460000_steps",
     )
     parser.add_argument("--image-size", type=int, default=64)
     parser.add_argument(

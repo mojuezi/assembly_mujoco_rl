@@ -33,6 +33,7 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from torch import nn
 
+from gated_fusion_models import GatedFusionExtractor
 from mujoco_env.mujoco_env.envs.env_instance import make_aubo_i5_assemble_hole_env
 from wrappers import (
     ALL_OBS_MODES,
@@ -332,6 +333,34 @@ def resolve_gradient_steps(n_envs: int, gradient_steps: int | None) -> int:
     return int(n_envs) if n_envs > 1 else 1
 
 
+def build_policy_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
+    """Select the SB3 feature extractor without changing the SAC wiring."""
+    if args.fusion_arch == "concat":
+        extractor_class = MultiModalExtractor
+        extractor_kwargs = dict(features_dim=args.fusion_features_dim)
+    elif args.fusion_arch == "gated":
+        extractor_class = GatedFusionExtractor
+        extractor_kwargs = dict(
+            features_dim=args.fusion_features_dim,
+            visual_latent_dim=args.visual_latent_dim,
+            force_latent_dim=args.force_latent_dim,
+            proprio_latent_dim=args.proprio_latent_dim,
+            pred_latent_dim=args.pred_latent_dim,
+            expert_dim=args.expert_dim,
+            gate_temperature=args.gate_temperature,
+            enable_predictive_encoder=args.enable_predictive_encoder,
+            use_phase_gate_prior=args.use_phase_gate_prior,
+        )
+    else:
+        raise ValueError(f"Unsupported fusion_arch={args.fusion_arch!r}")
+
+    return dict(
+        features_extractor_class=extractor_class,
+        features_extractor_kwargs=extractor_kwargs,
+        net_arch=dict(pi=[256, 256], qf=[256, 256]),
+    )
+
+
 def make_visual_env(args: argparse.Namespace):
     n_envs = int(getattr(args, "n_envs", 1))
     if n_envs <= 1:
@@ -364,7 +393,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--total-timesteps", type=int, default=1000_000)
     parser.add_argument("--save-freq", type=int, default=20_000)
-    parser.add_argument("--save-path", type=str, default="./checkpoints/visual_sac_baseline_rgb")
+    parser.add_argument("--save-path", type=str, default="./checkpoints/visual_sac_baseline_depth_force_proprio")
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--buffer-size", type=int, default=100_000)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -376,19 +405,19 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Gradient updates per vec step. Default: n_envs when n_envs>1 else 1.",
     )
-    parser.add_argument("--n-envs", type=int, default=32)
+    parser.add_argument("--n-envs", type=int, default=16)
     parser.add_argument(
         "--vec-env-start-method",
         type=str,
         default="forkserver",
         choices=["forkserver", "spawn", "fork"],
     )
-    parser.add_argument("--monitor-dir", type=str, default="./logs/visual_sac_baseline_rgb")
+    parser.add_argument("--monitor-dir", type=str, default="./logs/visual_sac_baseline_depth_force_proprio")
 
     parser.add_argument(
         "--obs-mode",
         type=str,
-        default="rgb_proprio",
+        default="depth_force_proprio",
         choices=sorted(ALL_OBS_MODES),
         help=(
             "选择输入模式：proprio=单本体状态；depth_proprio=本体+深度；"
@@ -413,6 +442,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--save-depth-count", type=int, default=0)
     parser.add_argument("--show-depth", action="store_true")
     parser.add_argument("--show-rgb", action="store_true")
+    parser.add_argument(
+        "--fusion-arch",
+        type=str,
+        default="gated",
+        choices=["concat", "gated"],
+        help="Feature fusion architecture: original concat extractor or gated multimodal extractor.",
+    )
+    parser.add_argument("--fusion-features-dim", type=int, default=256)
+    parser.add_argument("--visual-latent-dim", type=int, default=128)
+    parser.add_argument("--force-latent-dim", type=int, default=128)
+    parser.add_argument("--proprio-latent-dim", type=int, default=64)
+    parser.add_argument("--pred-latent-dim", type=int, default=64)
+    parser.add_argument("--expert-dim", type=int, default=128)
+    parser.add_argument("--gate-temperature", type=float, default=1.0)
+    parser.add_argument(
+        "--enable-predictive-encoder",
+        action="store_true",
+        default=True,
+        help="Enable the predictive expert in gated fusion (enabled by default).",
+    )
+    parser.add_argument(
+        "--use-phase-gate-prior",
+        action="store_true",
+        default=True,
+        help="Add phase-based prior logits to the gated fusion gate (enabled by default).",
+    )
     parser.add_argument("--log-every", type=int, default=100, help="Env step log interval when --env-step-log.")
     parser.add_argument(
         "--env-step-log",
@@ -472,6 +527,16 @@ def main() -> None:
     TrainLogger.kv("device", args.device)
     TrainLogger.kv("save_path", args.save_path)
     TrainLogger.kv("monitor_dir", args.monitor_dir)
+    TrainLogger.kv("fusion_arch", args.fusion_arch)
+    TrainLogger.kv("fusion_features_dim", args.fusion_features_dim)
+    TrainLogger.kv("visual_latent_dim", args.visual_latent_dim)
+    TrainLogger.kv("force_latent_dim", args.force_latent_dim)
+    TrainLogger.kv("proprio_latent_dim", args.proprio_latent_dim)
+    TrainLogger.kv("pred_latent_dim", args.pred_latent_dim)
+    TrainLogger.kv("expert_dim", args.expert_dim)
+    TrainLogger.kv("gate_temperature", args.gate_temperature)
+    TrainLogger.kv("enable_predictive_encoder", args.enable_predictive_encoder)
+    TrainLogger.kv("use_phase_gate_prior", args.use_phase_gate_prior)
     if args.obs_mode in FORCE_OBS_MODES or args.use_wrench_history:
         TrainLogger.kv("use_wrench_history", args.use_wrench_history)
         TrainLogger.kv("wrench_history_len", args.wrench_history_len)
@@ -495,11 +560,7 @@ def main() -> None:
     _print_obs_space(env.observation_space, indent=4)
     TrainLogger.kv("action_space", env.action_space)
 
-    policy_kwargs = dict(
-        features_extractor_class=MultiModalExtractor,
-        features_extractor_kwargs=dict(features_dim=256),
-        net_arch=dict(pi=[256, 256], qf=[256, 256]),
-    )
+    policy_kwargs = build_policy_kwargs(args)
 
     TrainLogger.section("Initializing SAC")
     model = SAC(
